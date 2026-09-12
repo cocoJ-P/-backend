@@ -1,0 +1,25 @@
+.venv/
+.env
+
+__pycache__/
+*.py[oc]
+*.pyc
+*.egg-info
+build/
+dist/
+wheels/
+
+.pytest_cache/
+
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
+
+# Cursor local files
+.cursor/

@@ -1,0 +1,75 @@
+{
+  "analysis": {
+    "content_nature": "opportunity_announcement",
+    "opportunity_relevance": "high",
+    "confidence": 0.86,
+    "warnings": []
+  },
+  "source_assessment": {
+    "apparent_source_type": "official_like",
+    "marketing_level": "none",
+    "marketing_signals": [],
+    "intermediary_level": "none",
+    "intermediary_signals": [],
+    "originality_claim": "claims_original"
+  },
+  "opportunity_claim": {
+    "claimed_type": "policy",
+    "claimed_title": "北京市科技型企业研发创新支持专项",
+    "claimed_issuer": "北京市科学技术委员会",
+    "claimed_region": "北京市",
+    "claimed_publish_date": "2026-06-01",
+    "claimed_deadline": "2026-10-15",
+    "claimed_status": "active",
+    "claimed_summary": "内容声称支持科技型企业加大研发投入。",
+    "claimed_resource_value": {
+      "funding": {
+        "description": "最高支持100万元",
+        "amount": 1000000,
+        "currency": "CNY",
+        "amount_type": "maximum"
+      },
+      "scenario": null,
+      "financing": null,
+      "service": null,
+      "other": []
+    },
+    "claimed_requirements": [
+      {
+        "key": "registration_region",
+        "label": "企业注册地区",
+        "operator": "equals",
+        "expected_value": "北京市",
+        "required": true,
+        "description": "内容声称企业注册地应位于北京市。",
+        "confidence": 0.9,
+        "evidence_ids": ["ev_001"]
+      }
+    ],
+    "claimed_required_materials": ["营业执照", "项目申报书"],
+    "claimed_application_process": ["在线申报", "资格审核"],
+    "claimed_official_url": "https://example.beijing.gov.cn/rd-innovation-support",
+    "claim_confidence": 0.88
+  },
+  "evidence": [
+    {
+      "id": "ev_001",
+      "kind": "direct_quote",
+      "field": "claimed_region",
+      "text": "企业注册地应位于北京市行政区域内",
+      "source": "body"
+    },
+    {
+      "id": "ev_002",
+      "kind": "direct_quote",
+      "field": "claimed_deadline",
+      "text": "申报截止时间为2026年10月15日",
+      "source": "body"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.0",
+    "analyzer_version": "contract-only",
+    "created_at": "2026-09-12T11:00:00Z"
+  }
+}

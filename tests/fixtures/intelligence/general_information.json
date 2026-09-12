@@ -1,0 +1,31 @@
+{
+  "analysis": {
+    "content_nature": "general_information",
+    "opportunity_relevance": "none",
+    "confidence": 0.8,
+    "warnings": ["insufficient_context"]
+  },
+  "source_assessment": {
+    "apparent_source_type": "media_like",
+    "marketing_level": "none",
+    "marketing_signals": [],
+    "intermediary_level": "none",
+    "intermediary_signals": [],
+    "originality_claim": "unclear"
+  },
+  "opportunity_claim": null,
+  "evidence": [
+    {
+      "id": "ev_g01",
+      "kind": "metadata",
+      "field": "opportunity_relevance",
+      "text": "title=产业园区开放日活动回顾",
+      "source": "metadata"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.0",
+    "analyzer_version": "contract-only",
+    "created_at": "2026-09-12T11:00:00Z"
+  }
+}

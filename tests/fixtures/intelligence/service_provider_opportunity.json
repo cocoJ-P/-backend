@@ -1,0 +1,76 @@
+{
+  "analysis": {
+    "content_nature": "service_content",
+    "opportunity_relevance": "high",
+    "confidence": 0.84,
+    "warnings": ["missing_issuer"]
+  },
+  "source_assessment": {
+    "apparent_source_type": "service_provider_like",
+    "marketing_level": "medium",
+    "marketing_signals": [
+      "引导咨询申报服务"
+    ],
+    "intermediary_level": "likely",
+    "intermediary_signals": [
+      "提供代办服务",
+      "声称可协助申报",
+      "提供收费咨询"
+    ],
+    "originality_claim": "appears_interpretation"
+  },
+  "opportunity_claim": {
+    "claimed_type": "financial_service",
+    "claimed_title": "科技型中小企业贷款贴息备案",
+    "claimed_issuer": null,
+    "claimed_region": "北京市",
+    "claimed_publish_date": null,
+    "claimed_deadline": null,
+    "claimed_status": "unknown",
+    "claimed_summary": "服务机构文章声称可协助办理贷款贴息备案。",
+    "claimed_resource_value": {
+      "funding": null,
+      "scenario": null,
+      "financing": "贷款贴息",
+      "service": "申报代办",
+      "other": []
+    },
+    "claimed_requirements": [
+      {
+        "key": "qualification",
+        "label": "企业资质",
+        "operator": "contains",
+        "expected_value": "科技型中小企业",
+        "required": true,
+        "description": "内容把科技型中小企业资质描述为申报条件。",
+        "confidence": 0.8,
+        "evidence_ids": ["ev_s01"]
+      }
+    ],
+    "claimed_required_materials": ["营业执照", "贷款合同"],
+    "claimed_application_process": ["在线备案", "资料核验"],
+    "claimed_official_url": null,
+    "claim_confidence": 0.7
+  },
+  "evidence": [
+    {
+      "id": "ev_s01",
+      "kind": "direct_quote",
+      "field": "claimed_requirements",
+      "text": "申报主体应具备科技型中小企业相关资质",
+      "source": "body"
+    },
+    {
+      "id": "ev_s02",
+      "kind": "derived_signal",
+      "field": "intermediary_level",
+      "text": "正文出现代办与收费咨询表述",
+      "source": "body"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.0",
+    "analyzer_version": "contract-only",
+    "created_at": "2026-09-12T11:00:00Z"
+  }
+}

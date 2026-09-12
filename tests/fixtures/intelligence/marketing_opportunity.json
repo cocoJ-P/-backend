@@ -1,0 +1,63 @@
+{
+  "analysis": {
+    "content_nature": "marketing_content",
+    "opportunity_relevance": "high",
+    "confidence": 0.91,
+    "warnings": []
+  },
+  "source_assessment": {
+    "apparent_source_type": "service_provider_like",
+    "marketing_level": "high",
+    "marketing_signals": [
+      "标题包含强刺激性金额表达",
+      "存在立即咨询引导",
+      "正文包含服务联系方式"
+    ],
+    "intermediary_level": "possible",
+    "intermediary_signals": [
+      "引导联系顾问"
+    ],
+    "originality_claim": "appears_interpretation"
+  },
+  "opportunity_claim": {
+    "claimed_type": "policy",
+    "claimed_title": "2026年北京市人工智能产业创新专项",
+    "claimed_issuer": "北京市科学技术委员会",
+    "claimed_region": "北京市",
+    "claimed_publish_date": null,
+    "claimed_deadline": "2026-09-30",
+    "claimed_status": "active",
+    "claimed_summary": "营销文声称存在一项人工智能产业创新专项。",
+    "claimed_resource_value": {
+      "funding": {
+        "description": "最高补贴500万元",
+        "amount": 5000000,
+        "currency": "CNY",
+        "amount_type": "maximum"
+      },
+      "scenario": null,
+      "financing": null,
+      "service": null,
+      "other": []
+    },
+    "claimed_requirements": [],
+    "claimed_required_materials": ["营业执照"],
+    "claimed_application_process": [],
+    "claimed_official_url": null,
+    "claim_confidence": 0.74
+  },
+  "evidence": [
+    {
+      "id": "ev_m01",
+      "kind": "direct_quote",
+      "field": "marketing_level",
+      "text": "最高补贴500万！立即联系顾问报名",
+      "source": "body"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.0",
+    "analyzer_version": "contract-only",
+    "created_at": "2026-09-12T11:00:00Z"
+  }
+}
