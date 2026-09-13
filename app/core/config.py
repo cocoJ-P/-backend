@@ -4,8 +4,10 @@ All environment-driven configuration lives here. Domain and API modules
 must read values from `settings` instead of duplicating defaults.
 """
 
+from typing import Annotated
+
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -22,12 +24,15 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     DATABASE_URL: str = "sqlite:///./data/zumaix_enterprise_service.db"
     LOG_LEVEL: str = "INFO"
-    CORS_ORIGINS: list[str] = Field(
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
         ]
     )
+    CORS_ORIGIN_REGEX: str = r"http://(localhost|127\.0\.0\.1):\d+"
     CONTENT_FETCH_TIMEOUT_SECONDS: float = 10
     CONTENT_MAX_BYTES: int = 5 * 1024 * 1024
     CONTENT_MAX_REDIRECTS: int = 5
@@ -41,6 +46,7 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: float = 60
     LLM_MAX_RETRIES: int = 2
     LLM_MAX_INPUT_CHARS: int = 24000
+    DEV_IDENTITY_ENABLED: bool = True
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -48,7 +54,12 @@ class Settings(BaseSettings):
         if value is None or value == "":
             return []
         if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
+            stripped = value.strip()
+            if stripped.startswith("["):
+                import json
+
+                return json.loads(stripped)
+            return [item.strip() for item in stripped.split(",") if item.strip()]
         return value
 
 

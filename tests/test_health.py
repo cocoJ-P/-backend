@@ -24,3 +24,4 @@ def test_openapi_available(client):
     assert "/api/health" in payload["paths"]
     assert "/api/opportunity-sources/{source_id}/analyze" in payload["paths"]
     assert "/api/intelligence-runs/{run_id}" in payload["paths"]
+    assert "/api/me" in payload["paths"]

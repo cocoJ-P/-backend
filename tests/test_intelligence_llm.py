@@ -213,6 +213,43 @@ def test_forbidden_field_is_rejected():
         _analyze(payload, {"verified": True})
 
 
+def test_partial_llm_payload_gets_defaults():
+    payload = _payload("plain_news.txt", title="某公司今日发布新产品")
+    extraction, _, _ = _analyze(
+        payload,
+        {
+            "evidence": [
+                {
+                    "id": "tmp_meta",
+                    "kind": "metadata",
+                    "field": "opportunity_relevance",
+                    "text": "title=某公司今日发布新产品",
+                    "source": "metadata",
+                }
+            ]
+        },
+    )
+    result = extraction.intelligence_result
+    assert result.analysis.content_nature.value == "unknown"
+    assert result.analysis.opportunity_relevance.value == "unknown"
+    assert result.source_assessment.apparent_source_type.value == "unknown"
+    assert "insufficient_context" in result.analysis.warnings
+
+
+def test_compatible_extra_fields_are_stripped():
+    payload = _payload("marketing_text.txt", title="最高补贴速看")
+    extra = _marketing_result()
+    extra["is_official"] = True
+    extra["analysis"]["note"] = "extra"
+    extra["opportunity_claim"]["extra_flag"] = "no"
+    extra.pop("metadata")
+    extraction, _, _ = _analyze(payload, extra)
+    result = extraction.intelligence_result
+    assert result.opportunity_claim is not None
+    assert result.metadata.schema_version == "1.0"
+    assert forbidden_fields_present(result.model_dump(mode="json")) == set()
+
+
 def test_hallucinated_evidence_is_rejected():
     payload = _payload("marketing_text.txt")
     bad = _marketing_result()
@@ -334,6 +371,37 @@ def test_openai_timeout_mapping():
     provider = OpenAICompatibleProvider(api_key="sk-test", model="gpt-4o-mini")
     mapped = provider._map_exception(TimeoutError("timed out"))
     assert isinstance(mapped, LLMTimeoutError)
+
+
+def test_compatible_provider_skips_response_format(monkeypatch):
+    captured: dict = {}
+
+    class _Completions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            raise RuntimeError("stop-after-request-shape")
+
+        parse = None
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    provider = OpenAICompatibleProvider(
+        api_key="sk-test",
+        model="deepseek-flash",
+        base_url="https://api.deepseek.com",
+    )
+    monkeypatch.setattr(provider, "_get_client", lambda: _Client())
+    with pytest.raises(LLMProviderError, match="stop-after-request-shape"):
+        provider._call(
+            [{"role": "user", "content": "x"}],
+            ContentIntelligenceResult,
+        )
+    assert "response_format" not in captured
+    assert captured["model"] == "deepseek-flash"
 
 
 def test_domain_modules_do_not_import_openai():

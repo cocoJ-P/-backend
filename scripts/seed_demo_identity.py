@@ -1,4 +1,4 @@
-"""Seed the Demo Enterprise used by 筑脉查查."""
+"""Seed Demo User and membership for Development Identity."""
 
 from __future__ import annotations
 
@@ -10,19 +10,18 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.database import SessionLocal
-from app.domains.enterprise.seed import DEMO_ENTERPRISE_ID, seed_demo_enterprise
+from app.domains.enterprise.seed import DEMO_ENTERPRISE_ID
 from app.domains.identity.seed import DEMO_USER_ID, seed_demo_identity
 
 
 def main() -> None:
     db = SessionLocal()
     try:
-        enterprise = seed_demo_enterprise(db)
         user = seed_demo_identity(db)
         print(
-            f"Demo enterprise ready: {enterprise.name} ({DEMO_ENTERPRISE_ID})"
+            f"Demo identity ready: {user.display_name} ({DEMO_USER_ID}) "
+            f"-> enterprise {DEMO_ENTERPRISE_ID}"
         )
-        print(f"Demo identity ready: {user.display_name} ({DEMO_USER_ID})")
     finally:
         db.close()
 

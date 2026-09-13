@@ -39,6 +39,18 @@ def _usage_from_completion(completion: Any) -> LLMUsage:
     )
 
 
+def _strip_json_fence(content: str) -> str:
+    text = content.strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
 def _dump_parsed(parsed: Any) -> dict[str, Any]:
     if parsed is None:
         raise LLMStructuredOutputError("structured parse returned no object")
@@ -117,31 +129,40 @@ class OpenAICompatibleProvider(LLMProvider):
         assert last_error is not None
         raise last_error
 
+    def _uses_native_structured_output(self) -> bool:
+        return not self._base_url
+
     def _call(self, messages: list[dict[str, str]], response_model: type[BaseModel]) -> Any:
         client = self._get_client()
         try:
-            parse_fn = getattr(client.chat.completions, "parse", None)
-            if parse_fn is None:
-                parse_fn = getattr(getattr(client, "beta").chat.completions, "parse", None)
-            if parse_fn is not None:
-                return parse_fn(
+            if self._uses_native_structured_output():
+                parse_fn = getattr(client.chat.completions, "parse", None)
+                if parse_fn is None:
+                    parse_fn = getattr(getattr(client, "beta").chat.completions, "parse", None)
+                if parse_fn is not None:
+                    return parse_fn(
+                        model=self._model,
+                        messages=messages,
+                        response_format=response_model,
+                        temperature=0,
+                    )
+                return client.chat.completions.create(
                     model=self._model,
                     messages=messages,
-                    response_format=response_model,
                     temperature=0,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": response_model.__name__,
+                            "schema": response_model.model_json_schema(),
+                            "strict": False,
+                        },
+                    },
                 )
             return client.chat.completions.create(
                 model=self._model,
                 messages=messages,
                 temperature=0,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": response_model.__name__,
-                        "schema": response_model.model_json_schema(),
-                        "strict": False,
-                    },
-                },
             )
         except Exception as exc:
             raise self._map_exception(exc) from exc
@@ -164,7 +185,7 @@ class OpenAICompatibleProvider(LLMProvider):
         if not content or not isinstance(content, str):
             raise LLMStructuredOutputError("LLM response content was empty")
         try:
-            raw = json.loads(content)
+            raw = json.loads(_strip_json_fence(content))
         except json.JSONDecodeError as exc:
             raise LLMStructuredOutputError("LLM response was not valid JSON") from exc
         if not isinstance(raw, dict):

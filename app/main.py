@@ -9,10 +9,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.enterprises import router as enterprises_router
 from app.api.health import router as health_router
+from app.api.identity import router as identity_router
 from app.api.ingestion import router as ingestion_router
 from app.api.intelligence import router as intelligence_router
 from app.api.opportunities import router as opportunities_router
 from app.api.opportunities import source_router as opportunity_sources_router
+from app.api.submissions import router as submissions_router
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import get_logger, setup_logging
@@ -35,7 +37,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="筑脉企服 Backend",
-    description="筑脉企服统一业务后端。当前阶段为 Backend B4.4 Opportunity Intelligence Orchestrator。",
+    description="筑脉企服统一业务后端。当前阶段为 D2.1 User Submission。",
     version="0.1.0",
     lifespan=lifespan,
     openapi_tags=[
@@ -45,15 +47,19 @@ app = FastAPI(
         {"name": "Opportunity Sources", "description": "尚未映射或独立创建的机会来源"},
         {"name": "Content Ingestion", "description": "将 URL 或正文转换为统一内容对象"},
         {"name": "Opportunity Intelligence", "description": "分析来源内容声称的机会信息，不是真实性验证"},
+        {"name": "Identity", "description": "开发环境身份上下文。X-Dev-User-Id 不是正式认证"},
+        {"name": "User Submissions", "description": "用户主动提交的查查记录。需要 X-Dev-User-Id"},
     ],
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_private_network=True,
 )
 
 
@@ -85,3 +91,5 @@ app.include_router(opportunities_router, prefix=settings.API_PREFIX)
 app.include_router(opportunity_sources_router, prefix=settings.API_PREFIX)
 app.include_router(ingestion_router, prefix=settings.API_PREFIX)
 app.include_router(intelligence_router, prefix=settings.API_PREFIX)
+app.include_router(identity_router, prefix=settings.API_PREFIX)
+app.include_router(submissions_router, prefix=settings.API_PREFIX)

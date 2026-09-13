@@ -16,6 +16,7 @@ from app.domains.intelligence.llm.prompt_builder import (
     prompt_version,
 )
 from app.domains.intelligence.llm.prompts import INTELLIGENCE_PROMPT_VERSION
+from app.domains.intelligence.llm.sanitize import sanitize_llm_payload
 from app.domains.intelligence.llm.schemas import LLMExtractionResult
 from app.domains.intelligence.rules.schemas import RuleAnalysisResult
 from app.domains.intelligence.schemas import ContentIntelligenceInput, ContentIntelligenceResult
@@ -98,14 +99,17 @@ class LLMIntelligenceAnalyzer:
         if not isinstance(data, dict):
             raise LLMSchemaValidationError("LLM output root must be an object")
         forbidden = forbidden_fields_present(data)
-        if forbidden:
+        has_core_fields = "analysis" in data or "source_assessment" in data
+        if forbidden and not has_core_fields:
             raise LLMSchemaValidationError(
                 "LLM output contained forbidden fields",
                 details={"fields": sorted(forbidden)},
             )
+        data = sanitize_llm_payload(data)
         try:
             result = ContentIntelligenceResult.model_validate(data)
         except ValidationError as exc:
+            logger.info("llm pydantic validation failed errors=%s", exc.errors())
             raise LLMSchemaValidationError(
                 "LLM output failed Pydantic validation",
                 details=exc.errors(),
