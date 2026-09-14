@@ -54,7 +54,7 @@ Cursor / VS Code 解释器选择：
 data/zumaix_enterprise_service.db
 ```
 
-**不要**把真实 `LLM_API_KEY` 提交进 Git。`.env` 已在 `.gitignore` 中。
+**不要**把真实 `LLM_API_KEY` 或 `FEISHU_APP_SECRET` 提交进 Git。`.env` 已在 `.gitignore` 中。
 
 ## 4. 启动后端
 
@@ -138,7 +138,26 @@ LLM_BASE_URL=
 uv run python scripts/test_intelligence_llm.py
 ```
 
-## 8. 常用 API（启动后）
+## 8. 可选：飞书（默认关闭）
+
+`FEISHU_ENABLED=false` 时：
+
+- 后端**可以正常启动**
+- D0–D6.3 功能不受影响
+- 不会在 startup 请求 tenant_access_token
+- Adapter 被调用时返回 `FEISHU_NOT_CONFIGURED`
+
+不要把真实 `FEISHU_APP_SECRET` 写入仓库。`tenant_access_token` 只存在内存，不落库。
+
+可选、非破坏性连通性冒烟（只获取 token，不创建/更新/删除 Bitable 记录，不打印 token）：
+
+```bash
+uv run python -m app.integrations.feishu.smoke
+```
+
+详见 `docs/feishu-integration.md`。
+
+## 9. 常用 API（启动后）
 
 1. 接入一段文本：`POST /api/content/ingest`
 2. 用返回的 `source.id` 做分析：`POST /api/opportunity-sources/{source_id}/analyze`
@@ -147,11 +166,11 @@ uv run python scripts/test_intelligence_llm.py
 
 分析成功只表示流水线跑完，不代表机会已经过真实性验证。
 
-## 9. 停止服务
+## 10. 停止服务
 
 在运行 `uvicorn` 的终端里按 `Ctrl + C`。
 
-## 10. 常见问题
+## 11. 常见问题
 
 **端口被占用**
 
@@ -181,4 +200,4 @@ uv run alembic upgrade head
 uv run pytest
 ```
 
-测试使用内存 SQLite，不会改本机 `data/zumaix_enterprise_service.db`，也不会调用真实 LLM / 公网。
+测试使用内存 SQLite，不会改本机 `data/zumaix_enterprise_service.db`，也不会调用真实 LLM / 飞书 / 公网。

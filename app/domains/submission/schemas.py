@@ -11,8 +11,10 @@ from app.domains.intelligence.schemas import ContentIntelligenceResult
 from app.domains.submission.enums import (
     SubmissionFailureStage,
     SubmissionInputType,
+    SubmissionOriginType,
     SubmissionStatus,
 )
+from app.domains.service_case.schemas import LinkedServiceCase
 
 
 class CreateUserSubmissionRequest(BaseModel):
@@ -34,6 +36,8 @@ class UserSubmissionCreateResponse(BaseModel):
     status: SubmissionStatus
     input_type: SubmissionInputType
     input_preview: str
+    origin_type: SubmissionOriginType
+    origin_discovery_id: UUID | None
     created_at: datetime
     user: UserActor
     enterprise: MeEnterprise
@@ -51,11 +55,14 @@ class UserSubmissionSummary(BaseModel):
     input_preview: str
     display_title: str
     submitted_by: UserActor
+    origin_type: SubmissionOriginType
+    origin_discovery_id: UUID | None
     source_id: UUID | None
     ingestion_id: UUID | None
     intelligence_run_id: UUID | None
     created_at: datetime
     completed_at: datetime | None
+    linked_service_case: LinkedServiceCase | None = None
 
     @field_serializer("created_at", "completed_at")
     def serialize_datetime(self, value: datetime | None) -> str | None:
@@ -77,6 +84,8 @@ class SubmissionRecord(BaseModel):
     input_type: SubmissionInputType
     input_content: str
     input_preview: str
+    origin_type: SubmissionOriginType
+    origin_discovery_id: UUID | None
     source_id: UUID | None
     ingestion_id: UUID | None
     intelligence_run_id: UUID | None
@@ -115,3 +124,4 @@ class UserSubmissionDetail(BaseModel):
     enterprise: MeEnterprise
     content: SubmissionContentSummary | None = None
     intelligence: SubmissionIntelligenceSummary | None = None
+    linked_service_case: LinkedServiceCase | None = None

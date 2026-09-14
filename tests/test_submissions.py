@@ -182,10 +182,14 @@ def test_create_submission_uses_current_identity(client):
     assert "input_content" not in payload
 
     stored = _get_submission(payload["id"])
+    assert payload["origin_type"] == "user_input"
+    assert payload["origin_discovery_id"] is None
     assert stored.user_id == DEMO_USER_ID
     assert stored.enterprise_id == DEMO_ENTERPRISE_ID
     assert stored.status == SubmissionStatus.PENDING.value
     assert stored.input_content == "某申报通知..."
+    assert stored.origin_type == "user_input"
+    assert stored.origin_discovery_id is None
     assert stored.source_id is None
     assert stored.ingestion_id is None
     assert stored.intelligence_run_id is None
@@ -201,6 +205,21 @@ def test_create_rejects_spoofed_identity_fields(client):
             "enterprise_id": str(uuid4()),
             "input_type": "text",
             "content": "某申报通知...",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_create_rejects_client_origin_fields(client):
+    _seed_identity()
+    response = client.post(
+        "/api/user-submissions",
+        headers=_header(),
+        json={
+            "input_type": "text",
+            "content": "某申报通知...",
+            "origin_type": "discovery",
+            "origin_discovery_id": str(uuid4()),
         },
     )
     assert response.status_code == 422
@@ -481,6 +500,8 @@ def test_list_is_enterprise_scoped_newest_first_and_lightweight(client):
         assert item["display_title"] == "正文提交"
         assert item["input_preview"]
         assert item["submitted_by"]["display_name"] == "Demo User"
+        assert item["origin_type"] == "user_input"
+        assert item["origin_discovery_id"] is None
 
     isolated = client.get("/api/user-submissions", headers=_header(other_user_id))
     assert isolated.status_code == 200
@@ -518,7 +539,9 @@ def test_openapi_user_submission_routes_require_dev_identity(client):
     paths = payload["paths"]
     expected = {
         "/api/user-submissions": ["post", "get"],
+        "/api/user-submissions/mine": ["get"],
         "/api/user-submissions/{submission_id}/process": ["post"],
+        "/api/user-submissions/{submission_id}/service-case": ["post"],
         "/api/user-submissions/{submission_id}": ["get"],
     }
     for path, methods in expected.items():
@@ -534,4 +557,5 @@ def test_openapi_user_submission_routes_require_dev_identity(client):
     assert "UserSubmissionListResponse" in schemas
     assert "SubmissionContentSummary" in schemas
     assert "SubmissionIntelligenceSummary" in schemas
+    assert "LinkedServiceCase" in schemas
     assert schemas["CreateUserSubmissionRequest"].get("additionalProperties") is False

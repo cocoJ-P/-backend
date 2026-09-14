@@ -6,7 +6,7 @@ must read values from `settings` instead of duplicating defaults.
 
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     LLM_MAX_RETRIES: int = 2
     LLM_MAX_INPUT_CHARS: int = 24000
     DEV_IDENTITY_ENABLED: bool = True
+    FEISHU_ENABLED: bool = False
+    FEISHU_APP_ID: str = ""
+    FEISHU_APP_SECRET: SecretStr = SecretStr("")
+    FEISHU_BASE_URL: str = "https://open.feishu.cn"
+    FEISHU_BITABLE_APP_TOKEN: str = ""
+    FEISHU_SERVICE_CASE_TABLE_ID: str = ""
+    FEISHU_REQUEST_TIMEOUT_SECONDS: float = 10
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

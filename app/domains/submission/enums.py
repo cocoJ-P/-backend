@@ -19,3 +19,8 @@ class SubmissionStatus(StrEnum):
 class SubmissionFailureStage(StrEnum):
     INGEST = "ingest"
     ANALYZE = "analyze"
+
+
+class SubmissionOriginType(StrEnum):
+    USER_INPUT = "user_input"
+    DISCOVERY = "discovery"

@@ -25,5 +25,24 @@ Base: `http://127.0.0.1:8000`
 | Identity | GET | `/api/me` |
 | User Submissions | POST | `/api/user-submissions` |
 | User Submissions | POST | `/api/user-submissions/{submission_id}/process` |
+| User Submissions | POST | `/api/user-submissions/{submission_id}/service-case` |
 | User Submissions | GET | `/api/user-submissions` |
+| User Submissions | GET | `/api/user-submissions/mine` |
 | User Submissions | GET | `/api/user-submissions/{submission_id}` |
+| Discoveries | POST | `/api/discoveries` |
+| Discoveries | GET | `/api/discoveries` |
+| Discoveries | GET | `/api/discoveries/{discovery_id}` |
+| Discoveries | POST | `/api/discoveries/{discovery_id}/withdraw` |
+| Discoveries | POST | `/api/discoveries/{discovery_id}/accept` |
+| Discoveries | GET | `/api/discoveries/feed` |
+| Discoveries | GET | `/api/discoveries/saved` |
+| Discoveries | POST | `/api/discoveries/{discovery_id}/seen` |
+| Discoveries | GET | `/api/discoveries/{discovery_id}/user-state` |
+| Discoveries | PATCH | `/api/discoveries/{discovery_id}/user-state` |
+| Discovery User States | GET | `/api/discovery-user-states` |
+| Service Cases | GET | `/api/service-cases` |
+| Service Cases | GET | `/api/service-cases/mine` |
+| Service Cases | GET | `/api/service-cases/{service_case_id}` |
+
+D6.4 Feishu Adapter 没有公开 HTTP 接口。不要新增 `/api/feishu/*`。
+

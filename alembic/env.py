@@ -11,7 +11,11 @@ from app.domains.enterprise import models as enterprise_models  # noqa: F401
 from app.domains.identity import models as identity_models  # noqa: F401
 from app.domains.intelligence import models as intelligence_models  # noqa: F401
 from app.domains.opportunity import models as opportunity_models  # noqa: F401
+from app.domains.discovery import models as discovery_models  # noqa: F401
+from app.domains.discovery import user_state_models as discovery_user_state_models  # noqa: F401
 from app.domains.submission import models as submission_models  # noqa: F401
+from app.domains.service_case import models as service_case_models  # noqa: F401
+from app.integrations.feishu import models as feishu_binding_models  # noqa: F401
 from app.integrations.content import models as ingested_content_models  # noqa: F401
 
 config = context.config
