@@ -1,6 +1,6 @@
-# Feishu Integration Foundation (D6.4)
+# Feishu Integration
 
-飞书是外部协作执行载体，不是业务 Domain。本阶段只建立 Integration Foundation，不做 ServiceCase 自动同步。
+飞书是外部协作执行载体，不是业务 Domain。
 
 ```text
 ServiceCase = 业务事实
@@ -8,39 +8,78 @@ ServiceCaseFeishuBinding = 外部集成绑定事实
 Feishu Bitable = 后续执行载体
 ```
 
-未来关系：
+## D6.5 Outbound Sync
 
 ```text
-ServiceCase
-    │
-    │ D6.5
-    ▼
-Feishu Adapter
-    │
-    ▼
-Feishu Bitable Record
-    │
-    ▼
-ServiceCaseFeishuBinding
+UserSubmission succeeded
+↓
+POST /api/user-submissions/{id}/service-case
+↓
+COMMIT ServiceCase(open)
+↓
+若 created=true 且 FEISHU_ENABLED=true
+    Binding(pending) COMMIT
+    FastAPI BackgroundTask(service_case_id)
+        独立 DB Session
+        Case ID 对账 / create_record
+        Binding synced | failed
+↓
+立即返回 ServiceCase API（不依赖飞书成功）
 ```
 
-D6.4 只准备：
+失败语义：
 
-- `FeishuTenantTokenProvider`
-- `FeishuClient`
-- `FeishuBitableAdapter`
-- `ServiceCaseFeishuBinding`
+```text
+Feishu failed ≠ ServiceCase failed
+Binding failed = Integration problem
+```
 
-不把现有 ServiceCase 发送到飞书，不扫描历史数据，不在 startup 连接飞书，不在 ServiceCase 创建时建立 Binding。
+ServiceCase.status 仍是 `open / in_progress / completed / closed`。Binding.sync_status 是 `pending / synced / failed`。同步成功不会把 Case 改成 `in_progress`。
+
+`FEISHU_ENABLED=false` 时不创建 Binding、不 enqueue、不访问飞书。重复点击「继续办理」（`created=false`）不会自动重试飞书。历史 Case 不会 startup 扫描；需要人工：
+
+```bash
+uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
+```
+
+CLI 只输出 ServiceCase ID、Binding 状态、Record ID。不输出 APP_SECRET / token / Authorization。
+
+## BackgroundTask 限制
+
+FastAPI BackgroundTask 不是 durable queue。进程在 task 执行前崩溃时，`pending` Binding 仍在数据库，D6.7 再做可靠恢复 / Retry Endpoint。当前 0 automatic HTTP retry。
+
+## 字段映射
+
+| 飞书字段 | Backend 来源 |
+|---|---|
+| 服务事项 | `ServiceCase.title` |
+| Case ID | `str(ServiceCase.id)` |
+| 企业 | `Enterprise.name` |
+| 发起用户 | `User.display_name` |
+| 来源 | `user_input→用户提交`，`discovery→来自发现` |
+| 办理状态 | `open→待服务`，`in_progress→处理中`，`completed→已完成`，`closed→已关闭` |
+| 创建时间 | `ServiceCase.created_at`，Bitable DateTime 毫秒时间戳 |
+| Submission ID | `str(UserSubmission.id)` |
+
+## 幂等
+
+创建飞书 Record 前，若 Binding.record_id 为空，先按 Case ID 查询：
+
+- 0 条：create_record
+- 1 条：mark_synced，不再 create
+- >1 条：Binding failed，`FEISHU_DUPLICATE_CASE_RECORDS`
+
+create timeout / network 后再查一次 Case ID：找到 1 条视为成功；仍为 0 则 failed，不第二次 create。
+
+已 synced 且有 record_id：直接返回。Binding 已有 record_id 时 get_record 确认；远端不存在则 failed，不自动重建。
 
 ## 边界
 
 - 不新增 `app/domains/feishu/`
-- 不把 `feishu_record_id` / `feishu_table_id` / `feishu_url` / `sync_status` / `last_synced_at` 写入 `service_cases`
-- 不新增公开 API：`/api/feishu/*`、`/api/service-cases/{id}/feishu`
-- 不修改 ServiceCase API Contract
-- 第一版只使用一套筑脉企服服务侧 Feishu Internal App，没有多租户 OAuth
-- 不自动 Retry（标识 `retryable` 即可，Retry Policy 留到 D6.7）
+- 不把飞书字段写入 `service_cases`
+- 不新增公开 API：`/api/feishu/*`、Retry Endpoint
+- 不做 Feishu → Backend / Webhook（D6.6）
+- 不修改 Mini Program / Service Frontend 展示同步状态
 
 ## 配置
 
@@ -56,78 +95,45 @@ D6.4 只准备：
 | `FEISHU_SERVICE_CASE_TABLE_ID` | 空 | 服务事项表 table_id |
 | `FEISHU_REQUEST_TIMEOUT_SECONDS` | `10` | HTTP timeout |
 
-`FEISHU_ENABLED=false` 时 Backend 正常启动。`FEISHU_ENABLED=true` 但缺 APP_ID / APP_SECRET / BITABLE_APP_TOKEN / TABLE_ID 时，Adapter 被调用返回 `FEISHU_NOT_CONFIGURED`，不会导致 FastAPI 无法启动。
+永不存储：`FEISHU_APP_SECRET`、`tenant_access_token`。
 
-永不存储：
+## Token / HTTP Client
 
-- `FEISHU_APP_SECRET`
-- `tenant_access_token`
-
-## Token
-
-`FeishuTenantTokenProvider` 用 APP_ID + APP_SECRET 换取 `tenant_access_token`。
-
-- 进程内内存缓存：`token` + `expires_at`
-- 提前 60 秒视为不可用
-- `threading.Lock` 避免并发重复刷新
-- 不使用 Redis / 数据库缓存
-- 不在 Binding 表中保存 token
-
-## HTTP Client
-
-所有飞书 HTTP 必须经过 `app/integrations/feishu/`。`FeishuClient` 自动加 `Authorization: Bearer <tenant_access_token>`（token 获取请求除外）。
-
-不能只判断 HTTP 状态：飞书可能 HTTP 200 但业务 `code != 0`。超时、网络、限流、非法响应统一转成 `FeishuIntegrationError`。
+`FeishuTenantTokenProvider` 进程内存缓存 token，提前 60 秒刷新，`threading.Lock`。所有飞书 HTTP 经过 `app/integrations/feishu/`。HTTP 200 且业务 `code != 0` 仍视为失败。
 
 ## 错误码
 
-| code | retryable |
-|---|---|
-| `FEISHU_NOT_CONFIGURED` | false |
-| `FEISHU_AUTH_FAILED` | false |
-| `FEISHU_REQUEST_FAILED` | false |
-| `FEISHU_RATE_LIMITED` | true |
-| `FEISHU_TIMEOUT` | true |
-| `FEISHU_NETWORK_ERROR` | true |
-| `FEISHU_INVALID_RESPONSE` | false |
+| code | retryable | 来源 |
+|---|---|---|
+| `FEISHU_NOT_CONFIGURED` | false | HTTP / config |
+| `FEISHU_AUTH_FAILED` | false | HTTP |
+| `FEISHU_REQUEST_FAILED` | false | HTTP |
+| `FEISHU_RATE_LIMITED` | true | HTTP |
+| `FEISHU_TIMEOUT` | true | HTTP |
+| `FEISHU_NETWORK_ERROR` | true | HTTP |
+| `FEISHU_INVALID_RESPONSE` | false | HTTP |
+| `FEISHU_DUPLICATE_CASE_RECORDS` | false | Sync orchestration |
+| `FEISHU_RECORD_NOT_FOUND` | false | Sync / Bitable get |
+| `FEISHU_MAPPING_FAILED` | false | Mapper / Sync |
 
-真实飞书错误码可保存在 `provider_code`。不持久化完整 raw body。
+D6.5 只标识 retryable，不自动重试。
 
 ## Bitable
-
-`FeishuBitableAdapter` 只提供通用：
 
 - `create_record(fields)`
 - `get_record(record_id)`
 - `update_record(record_id, fields)`
-
-输入是 generic field mapping。ServiceCase → 飞书字段映射属于 D6.5。
+- `search_records(filter=...)`（generic，不硬编码 Case ID）
 
 ## Binding
 
-表 `service_case_feishu_bindings`：
-
-- `UNIQUE(service_case_id)`：一个 ServiceCase 一个 Binding
-- `UNIQUE(bitable_app_token, table_id, record_id)`：一个飞书 Record 不被两个 Binding 占用；`record_id` 允许 NULL
-- FK `service_case_id → service_cases.id` ON DELETE CASCADE
-- 创建 Binding 时 snapshot `bitable_app_token` / `table_id`
-
-`sync_status`：
-
-- `pending`：已建立 Binding，等待或正在同步
-- `synced`：已成功绑定一个飞书 Record
-- `failed`：最近一次同步失败
-
-没有 Binding 行表示尚未进入飞书同步，因此没有 `not_synced`。当前没有 worker，因此没有 `syncing`。
-
-`mark_synced` 写入 `record_id`、`last_synced_at`，清空 error fields。`mark_failed` 保存安全的 error code/message；已有 `record_id` 不清空。
-
-D6.4 运行时不会创建真实 Binding 行。Repository / Service 只供后续 D6.5 使用。
+表 `service_case_feishu_bindings`：UNIQUE(`service_case_id`)；UNIQUE(`bitable_app_token`, `table_id`, `record_id`)；FK CASCADE。创建时 snapshot app_token / table_id。
 
 ## 冒烟
 
 ```bash
 uv run python -m app.integrations.feishu.smoke
+uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
 ```
 
-只测试 tenant_access_token。成功输出 `Feishu connection OK`。不打印 token。没有真实 credential 时不算验收失败。
+token smoke 不写 Bitable。outbound CLI 会写记录，同一 Case 再跑必须幂等。

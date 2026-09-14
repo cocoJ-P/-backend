@@ -12,7 +12,7 @@
 
 ## 当前阶段
 
-Backend D6.4：Feishu Adapter Foundation。
+Backend D6.5：ServiceCase → Feishu Outbound Sync。
 
 ## 当前已实现
 
@@ -33,7 +33,8 @@ Backend D6.4：Feishu Adapter Foundation。
 - Discovery → UserSubmission Accept Bridge
 - Discovery Feedback Projection（`GET /api/discovery-user-states.linked_submission`）
 - ServiceCase Domain（用户明确开始推进的服务事项，与飞书解耦）
-- Feishu Adapter Foundation（tenant token、HTTP Client、Bitable Adapter、ServiceCaseFeishuBinding；不做自动同步）
+- Feishu Adapter Foundation（tenant token、HTTP Client、Bitable Adapter、ServiceCaseFeishuBinding）
+- ServiceCase → Feishu Outbound Sync（创建 Case 后 BackgroundTask 同步多维表格；飞书失败不回滚业务）
 
 ## Discovery
 
@@ -74,7 +75,15 @@ ServiceCaseFeishuBinding = 外部集成绑定事实
 Feishu Bitable = 后续执行载体
 ```
 
-`service_cases` 不保存 `feishu_record_id` / `feishu_table_id` / `sync_status`。绑定存在独立表 `service_case_feishu_bindings`。D6.4 只准备 Adapter 与 Binding 持久化，不会把现有 ServiceCase 同步到飞书，也不会在创建 Case 时调用飞书。
+`service_cases` 不保存 `feishu_record_id` / `feishu_table_id` / `sync_status`。绑定存在独立表 `service_case_feishu_bindings`。
+
+创建 ServiceCase 时：先 COMMIT 业务事实；若 `FEISHU_ENABLED=true` 且是首次创建，再写 Binding(pending) 并用 FastAPI BackgroundTask 同步飞书。飞书失败只把 Binding 标为 `failed`，ServiceCase 仍为 `open`。
+
+显式补同步历史 Case（不会 startup 扫描）：
+
+```bash
+uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
+```
 
 详见 `docs/feishu-integration.md`。
 
@@ -109,7 +118,6 @@ GET  /api/service-cases/{service_case_id}
 - Matching
 - Enterprise Lead
 - Search
-- Feishu outbound sync（D6.5）
 - Feishu webhook / status sync（D6.6）
 - Feishu retry UI（D6.7）
 - WeChat Auth
@@ -255,6 +263,14 @@ uv run python -m app.integrations.feishu.smoke
 ```
 
 `FEISHU_ENABLED=false` 时输出 `Feishu disabled`。没有真实 credential 不阻塞验收。
+
+显式同步某个 ServiceCase（会创建或复用 Binding，可能写入 Bitable）：
+
+```bash
+uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
+```
+
+不要打印 token。同一 Case 再跑一次不应新增第二条飞书记录。
 
 ## Feishu 配置
 

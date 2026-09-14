@@ -143,7 +143,7 @@ class FeishuClient:
         elif provider_code in AUTH_PROVIDER_CODES:
             code = FeishuErrorCode.AUTH_FAILED
         else:
-            code = FeishuErrorCode.AUTH_FAILED if "token" in message.lower() else FeishuErrorCode.REQUEST_FAILED
+            code = FeishuErrorCode.REQUEST_FAILED
         return FeishuIntegrationError(
             code,
             message,

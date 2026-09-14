@@ -8,7 +8,7 @@ from typing import Any
 from app.integrations.feishu.client import FeishuClient
 from app.integrations.feishu.config import FeishuConfig
 from app.integrations.feishu.enums import FeishuErrorCode
-from app.integrations.feishu.errors import FeishuIntegrationError
+from app.integrations.feishu.errors import FeishuIntegrationError, is_bitable_record_not_found
 from app.integrations.feishu.schemas import FeishuBitableRecord
 
 
@@ -32,20 +32,6 @@ class FeishuBitableAdapter:
         )
         return self._parse_record(payload)
 
-    def get_record(
-        self,
-        record_id: str,
-        *,
-        app_token: str | None = None,
-        table_id: str | None = None,
-    ) -> FeishuBitableRecord:
-        app_token, table_id = self._resolve_table(app_token, table_id)
-        payload = self._client.request_json(
-            "GET",
-            self._record_path(app_token, table_id, record_id),
-        )
-        return self._parse_record(payload)
-
     def update_record(
         self,
         record_id: str,
@@ -60,6 +46,49 @@ class FeishuBitableAdapter:
             self._record_path(app_token, table_id, record_id),
             json={"fields": dict(fields)},
         )
+        return self._parse_record(payload)
+
+    def search_records(
+        self,
+        *,
+        filter: Mapping[str, Any] | None = None,
+        page_size: int = 20,
+        app_token: str | None = None,
+        table_id: str | None = None,
+    ) -> list[FeishuBitableRecord]:
+        app_token, table_id = self._resolve_table(app_token, table_id)
+        body: dict[str, Any] = {"page_size": page_size, "automatic_fields": False}
+        if filter is not None:
+            body["filter"] = dict(filter)
+        payload = self._client.request_json(
+            "POST",
+            f"{self._records_path(app_token, table_id)}/search",
+            json=body,
+        )
+        return self._parse_records(payload)
+
+    def get_record(
+        self,
+        record_id: str,
+        *,
+        app_token: str | None = None,
+        table_id: str | None = None,
+    ) -> FeishuBitableRecord:
+        app_token, table_id = self._resolve_table(app_token, table_id)
+        try:
+            payload = self._client.request_json(
+                "GET",
+                self._record_path(app_token, table_id, record_id),
+            )
+        except FeishuIntegrationError as exc:
+            if is_bitable_record_not_found(exc):
+                raise FeishuIntegrationError(
+                    FeishuErrorCode.RECORD_NOT_FOUND,
+                    "Feishu Bitable record was not found",
+                    retryable=False,
+                    provider_code=exc.provider_code,
+                ) from exc
+            raise
         return self._parse_record(payload)
 
     def _resolve_table(self, app_token: str | None, table_id: str | None) -> tuple[str, str]:
@@ -105,3 +134,43 @@ class FeishuBitableAdapter:
             )
         fields = raw.get("fields") if isinstance(raw.get("fields"), dict) else {}
         return FeishuBitableRecord(record_id=record_id, fields=fields)
+
+    def _parse_records(self, payload: dict[str, Any]) -> list[FeishuBitableRecord]:
+        data = payload.get("data")
+        if data is None:
+            return []
+        if not isinstance(data, dict):
+            raise FeishuIntegrationError(
+                FeishuErrorCode.INVALID_RESPONSE,
+                "Feishu Bitable search response did not include data",
+                retryable=False,
+            )
+        items = data.get("items")
+        if items is None:
+            items = data.get("records")
+        if items is None:
+            return []
+        if not isinstance(items, list):
+            raise FeishuIntegrationError(
+                FeishuErrorCode.INVALID_RESPONSE,
+                "Feishu Bitable search response had an unexpected items shape",
+                retryable=False,
+            )
+        records: list[FeishuBitableRecord] = []
+        for raw in items:
+            if not isinstance(raw, dict):
+                raise FeishuIntegrationError(
+                    FeishuErrorCode.INVALID_RESPONSE,
+                    "Feishu Bitable search response contained a non-object record",
+                    retryable=False,
+                )
+            record_id = str(raw.get("record_id") or raw.get("id") or "").strip()
+            if not record_id:
+                raise FeishuIntegrationError(
+                    FeishuErrorCode.INVALID_RESPONSE,
+                    "Feishu Bitable search response did not include record_id",
+                    retryable=False,
+                )
+            fields = raw.get("fields") if isinstance(raw.get("fields"), dict) else {}
+            records.append(FeishuBitableRecord(record_id=record_id, fields=fields))
+        return records

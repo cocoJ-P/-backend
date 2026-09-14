@@ -11,7 +11,7 @@ import pytest
 from app.core.time import utc_now
 from app.integrations.feishu.config import FeishuConfig
 from app.integrations.feishu.enums import FeishuErrorCode
-from app.integrations.feishu.errors import FeishuIntegrationError
+from app.integrations.feishu.errors import FeishuIntegrationError, format_safe_feishu_error
 from app.integrations.feishu.service import create_feishu_integration
 from app.integrations.feishu.token_provider import TOKEN_PATH, TOKEN_EXPIRY_SAFETY_SECONDS
 
@@ -323,6 +323,45 @@ def test_bitable_update_record_sends_fields_payload():
         http_client.close()
 
 
+def test_bitable_search_records_posts_generic_filter():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == TOKEN_PATH:
+            return httpx.Response(200, json=_token_payload())
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "code": 0,
+                "msg": "success",
+                "data": {
+                    "items": [
+                        {"record_id": "recSEARCH", "fields": {"任意字段": "value"}},
+                    ]
+                },
+            },
+        )
+
+    integration, _requests, http_client = _integration(handler)
+    try:
+        records = integration.bitable.search_records(
+            filter={
+                "conjunction": "and",
+                "conditions": [{"field_name": "任意字段", "operator": "is", "value": ["value"]}],
+            }
+        )
+        assert [item.record_id for item in records] == ["recSEARCH"]
+        assert seen["method"] == "POST"
+        assert seen["path"].endswith("/records/search")
+        assert "Case ID" not in json.dumps(seen["body"], ensure_ascii=False)
+        assert seen["body"]["filter"]["conditions"][0]["field_name"] == "任意字段"
+    finally:
+        http_client.close()
+
+
 def test_disabled_adapter_makes_no_external_requests():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("disabled adapter must not call Feishu")
@@ -381,6 +420,23 @@ def test_error_str_repr_do_not_leak_secrets():
     assert TENANT_TOKEN not in str(error)
     assert TENANT_TOKEN not in repr(error)
     assert error.retryable is False
+
+
+def test_format_safe_feishu_error_includes_provider_fields_without_secrets():
+    error = FeishuIntegrationError(
+        FeishuErrorCode.REQUEST_FAILED,
+        f"Access denied {APP_SECRET} Authorization: Bearer {TENANT_TOKEN}",
+        provider_code=1254301,
+        secrets=(APP_SECRET, TENANT_TOKEN),
+    )
+    report = format_safe_feishu_error(error)
+    assert "Error: FEISHU_REQUEST_FAILED" in report
+    assert "Provider code: 1254301" in report
+    assert "Provider message:" in report
+    assert "Access denied" in report
+    assert APP_SECRET not in report
+    assert TENANT_TOKEN not in report
+    assert "Authorization" not in report
 
 
 def test_app_starts_with_feishu_disabled(client):

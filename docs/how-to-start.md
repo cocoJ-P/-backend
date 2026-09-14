@@ -155,6 +155,12 @@ uv run python scripts/test_intelligence_llm.py
 uv run python -m app.integrations.feishu.smoke
 ```
 
+显式同步某个 ServiceCase（可能写入多维表格）：
+
+```bash
+uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
+```
+
 详见 `docs/feishu-integration.md`。
 
 ## 9. 常用 API（启动后）

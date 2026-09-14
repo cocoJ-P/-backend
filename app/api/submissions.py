@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -25,6 +25,7 @@ from app.domains.submission.service import (
     list_user_submissions,
 )
 from app.domains.service_case.service import create_service_case_for_submission
+from app.integrations.feishu.outbound import schedule_service_case_feishu_sync
 
 router = APIRouter(prefix="/user-submissions", tags=["User Submissions"])
 
@@ -62,9 +63,12 @@ def create_service_case(
     submission_id: UUID,
     identity: Annotated[CurrentIdentity, Depends(get_current_identity)],
     response: Response,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> CreateServiceCaseResponse:
     result = create_service_case_for_submission(db, identity, submission_id)
+    if result.created:
+        schedule_service_case_feishu_sync(db, result.service_case.id, background_tasks)
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return result
 
