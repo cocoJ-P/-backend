@@ -10,6 +10,7 @@ dependencies = [
     "dateparser>=1.4.3",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "lark-oapi==1.7.3",
     "openai>=3.13.0",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",

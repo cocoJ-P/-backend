@@ -1,6 +1,6 @@
-"""Feishu integration entrypoints: HTTP adapter factory and binding state service.
+"""Feishu integration entrypoints: SDK adapter factory and binding state service.
 
-Does not sync ServiceCase. Does not mutate ServiceCase.status.
+Does not mutate ServiceCase.status.
 """
 
 from __future__ import annotations
@@ -8,15 +8,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-import httpx
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.time import utc_now
 from app.integrations.feishu.bitable import FeishuBitableAdapter
-from app.integrations.feishu.client import FeishuClient
 from app.integrations.feishu.config import FeishuConfig
-from app.integrations.feishu.enums import FeishuBindingSyncStatus
-from app.integrations.feishu.errors import sanitize_feishu_text
+from app.integrations.feishu.enums import FeishuBindingSyncStatus, FeishuErrorCode
+from app.integrations.feishu.errors import FeishuIntegrationError, sanitize_feishu_text
 from app.integrations.feishu.models import ServiceCaseFeishuBinding
 from app.integrations.feishu.repository import (
     add_binding,
@@ -24,16 +23,13 @@ from app.integrations.feishu.repository import (
     get_by_service_case_id,
     save_binding,
 )
-from app.integrations.feishu.token_provider import FeishuTenantTokenProvider
-
-_shared_http_client: httpx.Client | None = None
+from app.integrations.feishu.sdk import get_shared_sdk_client, reset_shared_sdk_client
 
 
 @dataclass
 class FeishuIntegration:
     config: FeishuConfig
-    token_provider: FeishuTenantTokenProvider
-    client: FeishuClient
+    sdk_client: object | None
     bitable: FeishuBitableAdapter
 
 
@@ -43,36 +39,21 @@ FeishuAdapter = FeishuIntegration
 def create_feishu_integration(
     *,
     config: FeishuConfig | None = None,
-    http_client: httpx.Client | None = None,
+    sdk_client: object | None = None,
 ) -> FeishuIntegration:
     resolved = config or FeishuConfig.from_settings()
-    client_http = http_client or _shared_client(resolved)
-    feishu_client = FeishuClient(client_http, resolved)
-    token_provider = FeishuTenantTokenProvider(feishu_client, resolved)
-    feishu_client.set_token_provider(token_provider)
+    client = sdk_client
+    if client is None and resolved.is_auth_configured():
+        client = get_shared_sdk_client(resolved)
     return FeishuIntegration(
         config=resolved,
-        token_provider=token_provider,
-        client=feishu_client,
-        bitable=FeishuBitableAdapter(feishu_client, resolved),
+        sdk_client=client,
+        bitable=FeishuBitableAdapter(client, resolved),
     )
 
 
-def _shared_client(config: FeishuConfig) -> httpx.Client:
-    global _shared_http_client
-    if _shared_http_client is None:
-        _shared_http_client = httpx.Client(
-            base_url=config.base_url,
-            timeout=httpx.Timeout(config.timeout_seconds),
-        )
-    return _shared_http_client
-
-
-def reset_shared_http_client() -> None:
-    global _shared_http_client
-    if _shared_http_client is not None:
-        _shared_http_client.close()
-        _shared_http_client = None
+def reset_shared_feishu_clients() -> None:
+    reset_shared_sdk_client()
 
 
 class FeishuBindingService:
@@ -94,6 +75,9 @@ class FeishuBindingService:
             last_synced_at=None,
             last_error_code=None,
             last_error_message=None,
+            retry_count=0,
+            last_retry_at=None,
+            last_error_retryable=False,
             created_at=now,
             updated_at=now,
         )
@@ -133,6 +117,33 @@ class FeishuBindingService:
         binding.last_synced_at = utc_now()
         binding.last_error_code = None
         binding.last_error_message = None
+        binding.last_error_retryable = False
+        return save_binding(db, binding)
+
+    def replace_record_id(
+        self,
+        db: Session,
+        binding: ServiceCaseFeishuBinding,
+        record_id: str,
+    ) -> ServiceCaseFeishuBinding:
+        binding.record_id = record_id
+        try:
+            return save_binding(db, binding)
+        except IntegrityError as exc:
+            db.rollback()
+            raise FeishuIntegrationError(
+                FeishuErrorCode.BINDING_RECORD_MISMATCH,
+                "Feishu record_id is already bound to another ServiceCase",
+                retryable=False,
+            ) from exc
+
+    def note_retry_attempt(
+        self,
+        db: Session,
+        binding: ServiceCaseFeishuBinding,
+    ) -> ServiceCaseFeishuBinding:
+        binding.retry_count = int(binding.retry_count or 0) + 1
+        binding.last_retry_at = utc_now()
         return save_binding(db, binding)
 
     def mark_failed(
@@ -143,8 +154,10 @@ class FeishuBindingService:
         error_code: str,
         error_message: str | None,
         secrets: tuple[str, ...] = (),
+        retryable: bool = False,
     ) -> ServiceCaseFeishuBinding:
         binding.sync_status = FeishuBindingSyncStatus.FAILED.value
         binding.last_error_code = (error_code or "")[:128] or None
         binding.last_error_message = sanitize_feishu_text(error_message or "", secrets) or None
+        binding.last_error_retryable = bool(retryable)
         return save_binding(db, binding)

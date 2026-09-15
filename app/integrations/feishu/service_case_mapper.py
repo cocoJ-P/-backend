@@ -31,6 +31,8 @@ STATUS_LABELS = {
     "closed": "已关闭",
 }
 
+STATUS_FROM_LABELS = {label: status for status, label in STATUS_LABELS.items()}
+
 
 @dataclass(frozen=True)
 class ServiceCaseFeishuProjection:
@@ -87,3 +89,38 @@ def map_service_case_to_bitable_fields(projection: ServiceCaseFeishuProjection) 
         FIELD_CREATED_AT: to_bitable_datetime(projection.created_at),
         FIELD_SUBMISSION_ID: str(projection.submission_id),
     }
+
+
+def normalize_single_select_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, list):
+        if not value:
+            return None
+        return normalize_single_select_value(value[0])
+    if isinstance(value, dict):
+        for key in ("text", "name", "value"):
+            if key in value:
+                return normalize_single_select_value(value.get(key))
+        return None
+    return None
+
+
+def map_bitable_status_label_to_service_case(label: str) -> str:
+    status = STATUS_FROM_LABELS.get((label or "").strip())
+    if status is None:
+        raise FeishuIntegrationError(
+            FeishuErrorCode.UNSUPPORTED_SERVICE_CASE_STATUS,
+            f"Unsupported Feishu service-case status: {label}",
+            retryable=False,
+        )
+    return status
+
+
+def read_remote_case_id(fields: dict) -> str | None:
+    return normalize_single_select_value(fields.get(FIELD_CASE_ID))

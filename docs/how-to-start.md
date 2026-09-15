@@ -1,5 +1,7 @@
 # 如何启动筑脉企服后端
 
+日常开发两个进程怎么开，见 **[start.md](./start.md)**。
+
 本文说明本机如何启动「筑脉企服统一后端」。日常命令一律用 `uv run`，不要用系统 `pip` / 全局 Python。
 
 ## 1. 环境要求
@@ -143,16 +145,17 @@ uv run python scripts/test_intelligence_llm.py
 `FEISHU_ENABLED=false` 时：
 
 - 后端**可以正常启动**
-- D0–D6.3 功能不受影响
-- 不会在 startup 请求 tenant_access_token
+- D0–D6.7 功能不受影响
+- 不会在 startup 请求飞书 OpenAPI 或启动 WebSocket
 - Adapter 被调用时返回 `FEISHU_NOT_CONFIGURED`
 
-不要把真实 `FEISHU_APP_SECRET` 写入仓库。`tenant_access_token` 只存在内存，不落库。
+不要把真实 `FEISHU_APP_SECRET` 写入仓库。应用凭证与 token 由官方 SDK（`lark-oapi==1.7.3`）管理，业务代码不接触 token。
 
-可选、非破坏性连通性冒烟（只获取 token，不创建/更新/删除 Bitable 记录，不打印 token）：
+可选、非破坏性连通性冒烟（官方 SDK 只读调用，不创建/更新/删除 Bitable 记录，不打印 token）：
 
 ```bash
 uv run python -m app.integrations.feishu.smoke
+uv run python -m app.integrations.feishu.smoke_bitable
 ```
 
 显式同步某个 ServiceCase（可能写入多维表格）：
@@ -160,6 +163,30 @@ uv run python -m app.integrations.feishu.smoke
 ```bash
 uv run python -m app.integrations.feishu.sync_service_case <SERVICE_CASE_ID>
 ```
+
+失败恢复 / 对账（一次性命令，无 Celery / Redis / Kafka）：
+
+```bash
+uv run python -m app.integrations.feishu.retry_service_case <SERVICE_CASE_ID>
+uv run python -m app.integrations.feishu.retry_event_receipt <RECEIPT_ID>
+uv run python -m app.integrations.feishu.retry_failed_syncs --direction all --limit 20
+uv run python -m app.integrations.feishu.reconcile_service_case <SERVICE_CASE_ID>
+```
+
+开发用 WebSocket 连通性冒烟（不处理业务事件，Ctrl+C 停止）：
+
+```bash
+uv run python -m app.integrations.feishu.ws_smoke
+```
+
+飞书入站是**第二个进程**，与 API Server 解耦：
+
+```bash
+uv run python -m app.integrations.feishu.subscribe_service_case_events
+uv run python -m app.integrations.feishu.event_worker
+```
+
+开放平台需人工：长连接接收事件，并订阅 `drive.file.bitable_record_changed_v1`。`FEISHU_SERVICE_CASE_STATUS_FIELD_ID` 来自 `list_fields` 的「办理状态」。
 
 详见 `docs/feishu-integration.md`。
 

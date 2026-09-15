@@ -18,6 +18,8 @@ class FeishuConfig:
     bitable_app_token: str
     service_case_table_id: str
     timeout_seconds: float
+    service_case_status_field_id: str = ""
+    sync_stale_after_seconds: float = 300
 
     @classmethod
     def from_settings(cls, values: Settings | None = None) -> FeishuConfig:
@@ -35,6 +37,8 @@ class FeishuConfig:
             bitable_app_token=(current.FEISHU_BITABLE_APP_TOKEN or "").strip(),
             service_case_table_id=(current.FEISHU_SERVICE_CASE_TABLE_ID or "").strip(),
             timeout_seconds=float(current.FEISHU_REQUEST_TIMEOUT_SECONDS),
+            service_case_status_field_id=(current.FEISHU_SERVICE_CASE_STATUS_FIELD_ID or "").strip(),
+            sync_stale_after_seconds=float(current.FEISHU_SYNC_STALE_AFTER_SECONDS),
         )
 
     def is_auth_configured(self) -> bool:
@@ -46,3 +50,6 @@ class FeishuConfig:
             and self.bitable_app_token
             and self.service_case_table_id
         )
+
+    def is_inbound_configured(self) -> bool:
+        return bool(self.is_bitable_configured() and self.service_case_status_field_id)

@@ -53,7 +53,9 @@ class Settings(BaseSettings):
     FEISHU_BASE_URL: str = "https://open.feishu.cn"
     FEISHU_BITABLE_APP_TOKEN: str = ""
     FEISHU_SERVICE_CASE_TABLE_ID: str = ""
+    FEISHU_SERVICE_CASE_STATUS_FIELD_ID: str = ""
     FEISHU_REQUEST_TIMEOUT_SECONDS: float = 10
+    FEISHU_SYNC_STALE_AFTER_SECONDS: float = 300
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

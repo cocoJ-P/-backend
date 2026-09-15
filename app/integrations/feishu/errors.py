@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from app.integrations.feishu.enums import FeishuErrorCode
@@ -17,9 +18,14 @@ AMBIGUOUS_CREATE_CODES = {
     FeishuErrorCode.NETWORK_ERROR,
 }
 
-BITABLE_RECORD_NOT_FOUND_PROVIDER_CODES = {1254043, 1254044, 1254045}
+AUTH_PROVIDER_CODES = {10003, 10010, 10012, 10013, 10014, 99991661, 99991663, 99991664}
+RATE_LIMIT_PROVIDER_CODES = {99991400, 99991401, 99991402}
+BITABLE_RECORD_NOT_FOUND_PROVIDER_CODES = {1254043, 1254044}
 
 ERROR_MESSAGE_MAX_CHARS = 500
+
+_BEARER_PATTERN = re.compile(r"(?i)bearer\s+\S+")
+_TENANT_TOKEN_ASSIGN_PATTERN = re.compile(r"(?i)tenant_access_token[=:\s]+\S+")
 
 
 def sanitize_feishu_text(text: str, secrets: Sequence[str] = ()) -> str:
@@ -31,6 +37,8 @@ def sanitize_feishu_text(text: str, secrets: Sequence[str] = ()) -> str:
     for secret in secrets:
         if secret:
             value = value.replace(secret, "[redacted]")
+    value = _BEARER_PATTERN.sub("Bearer [redacted]", value)
+    value = _TENANT_TOKEN_ASSIGN_PATTERN.sub("tenant_access_token=[redacted]", value)
     value = value.replace("Authorization", "[redacted]")
     value = value.replace("tenant_access_token", "[redacted]")
     value = value.replace("app_secret", "[redacted]")
@@ -45,12 +53,14 @@ class FeishuIntegrationError(Exception):
         *,
         retryable: bool | None = None,
         provider_code: object | None = None,
+        log_id: str | None = None,
         secrets: Sequence[str] = (),
     ) -> None:
         self.code = FeishuErrorCode(code)
         self.message = sanitize_feishu_text(message, secrets) or self.code.value
         self.retryable = bool(self.code in RETRYABLE_CODES if retryable is None else retryable)
         self.provider_code = provider_code
+        self.log_id = log_id
         super().__init__(self.message)
 
     def __str__(self) -> str:
@@ -69,6 +79,8 @@ def format_safe_feishu_error(error: FeishuIntegrationError) -> str:
     lines = [f"Error: {error.code}"]
     if error.provider_code is not None and error.provider_code != "":
         lines.append(f"Provider code: {error.provider_code}")
+    if error.log_id:
+        lines.append(f"Log id: {error.log_id}")
     message = (error.message or "").strip()
     if message:
         lines.append(f"Provider message: {message}")
@@ -77,6 +89,14 @@ def format_safe_feishu_error(error: FeishuIntegrationError) -> str:
 
 def is_ambiguous_create_error(error: FeishuIntegrationError) -> bool:
     return error.code in AMBIGUOUS_CREATE_CODES
+
+
+def is_retryable_error_code(code: object) -> bool:
+    value = getattr(code, "value", code)
+    try:
+        return FeishuErrorCode(str(value)) in RETRYABLE_CODES
+    except ValueError:
+        return False
 
 
 def is_bitable_record_not_found(error: FeishuIntegrationError) -> bool:

@@ -37,6 +37,33 @@ from app.integrations.feishu.service_case_mapper import (
 logger = get_logger(__name__)
 
 
+def load_service_case_projection(
+    db: Session,
+    service_case_id: UUID,
+) -> ServiceCaseFeishuProjection | None:
+    statement = (
+        select(ServiceCase, Enterprise, User, UserSubmission)
+        .join(Enterprise, Enterprise.id == ServiceCase.enterprise_id)
+        .join(User, User.id == ServiceCase.created_by_user_id)
+        .join(UserSubmission, UserSubmission.id == ServiceCase.submission_id)
+        .where(ServiceCase.id == service_case_id)
+    )
+    row = db.execute(statement).first()
+    if row is None:
+        return None
+    case, enterprise, user, submission = row
+    return ServiceCaseFeishuProjection(
+        title=case.title,
+        service_case_id=case.id,
+        enterprise_name=enterprise.name,
+        created_by_display_name=user.display_name,
+        origin_type=submission.origin_type,
+        status=case.status,
+        created_at=case.created_at,
+        submission_id=submission.id,
+    )
+
+
 class ServiceCaseFeishuSyncService:
     def __init__(
         self,
@@ -124,12 +151,13 @@ class ServiceCaseFeishuSyncService:
                 service_case_id,
                 binding.id,
             )
-            return self._bindings.mark_failed(
-                db,
-                binding,
-                error_code=FeishuErrorCode.REQUEST_FAILED.value,
-                error_message="unexpected Feishu outbound sync failure",
-            )
+        return self._bindings.mark_failed(
+            db,
+            binding,
+            error_code=FeishuErrorCode.REQUEST_FAILED.value,
+            error_message="unexpected Feishu outbound sync failure",
+            retryable=False,
+        )
 
     def _confirm_existing_record(
         self,
@@ -235,27 +263,7 @@ class ServiceCaseFeishuSyncService:
         db: Session,
         service_case_id: UUID,
     ) -> ServiceCaseFeishuProjection | None:
-        statement = (
-            select(ServiceCase, Enterprise, User, UserSubmission)
-            .join(Enterprise, Enterprise.id == ServiceCase.enterprise_id)
-            .join(User, User.id == ServiceCase.created_by_user_id)
-            .join(UserSubmission, UserSubmission.id == ServiceCase.submission_id)
-            .where(ServiceCase.id == service_case_id)
-        )
-        row = db.execute(statement).first()
-        if row is None:
-            return None
-        case, enterprise, user, submission = row
-        return ServiceCaseFeishuProjection(
-            title=case.title,
-            service_case_id=case.id,
-            enterprise_name=enterprise.name,
-            created_by_display_name=user.display_name,
-            origin_type=submission.origin_type,
-            status=case.status,
-            created_at=case.created_at,
-            submission_id=submission.id,
-        )
+        return load_service_case_projection(db, service_case_id)
 
     def _ensure_pending_binding(
         self,
@@ -301,6 +309,7 @@ class ServiceCaseFeishuSyncService:
             binding,
             error_code=str(error.code),
             error_message=error.message,
+            retryable=bool(error.retryable),
         )
 
     def _config(self) -> FeishuConfig:

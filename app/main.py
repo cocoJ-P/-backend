@@ -40,7 +40,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="筑脉企服 Backend",
-    description="筑脉企服统一业务后端。当前阶段为 D6.5 ServiceCase → Feishu Outbound Sync。",
+    description="筑脉企服统一业务后端。当前阶段为 D6.6 Feishu → Backend Status Sync。",
     version="0.1.0",
     lifespan=lifespan,
     openapi_tags=[

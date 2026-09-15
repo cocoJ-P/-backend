@@ -33,7 +33,14 @@ def setup_logging() -> None:
         app_logger.addHandler(handler)
         app_logger.propagate = False
 
+    events_logger = logging.getLogger("app.integrations.feishu.events")
+    events_logger.setLevel(logging.INFO)
+    logging.getLogger("app.integrations.feishu.recovery").setLevel(logging.INFO)
+
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("lark_oapi").setLevel(logging.WARNING)
+    logging.getLogger("websockets").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

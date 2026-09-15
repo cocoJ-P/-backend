@@ -19,6 +19,7 @@ os.environ["FEISHU_APP_ID"] = ""
 os.environ["FEISHU_APP_SECRET"] = ""
 os.environ["FEISHU_BITABLE_APP_TOKEN"] = ""
 os.environ["FEISHU_SERVICE_CASE_TABLE_ID"] = ""
+os.environ["FEISHU_SERVICE_CASE_STATUS_FIELD_ID"] = ""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +34,7 @@ from app.domains.discovery import user_state_models as discovery_user_state_mode
 from app.domains.submission import models as submission_models  # noqa: F401
 from app.domains.service_case import models as service_case_models  # noqa: F401
 from app.integrations.feishu import models as feishu_binding_models  # noqa: F401
+from app.integrations.feishu import event_receipt as feishu_event_receipt_models  # noqa: F401
 from app.integrations.content import models as ingested_content_models  # noqa: F401
 from app.main import app
 

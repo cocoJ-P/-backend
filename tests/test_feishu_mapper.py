@@ -17,7 +17,9 @@ from app.integrations.feishu.service_case_mapper import (
     FIELD_SUBMISSION_ID,
     FIELD_TITLE,
     ServiceCaseFeishuProjection,
+    map_bitable_status_label_to_service_case,
     map_service_case_to_bitable_fields,
+    normalize_single_select_value,
     to_bitable_datetime,
 )
 
@@ -59,6 +61,7 @@ def test_mapper_emits_all_eight_fields():
     assert fields[FIELD_CREATED_BY] == "张三"
     assert fields[FIELD_ORIGIN] == "用户提交"
     assert fields[FIELD_STATUS] == "待服务"
+    assert FIELD_CREATED_AT == "创建时间"
     assert fields[FIELD_CREATED_AT] == to_bitable_datetime(CREATED_AT)
     assert isinstance(fields[FIELD_CREATED_AT], int)
     assert fields[FIELD_SUBMISSION_ID] == str(SUBMISSION_ID)
@@ -86,3 +89,22 @@ def test_mapper_rejects_unknown_origin():
     with pytest.raises(FeishuIntegrationError) as exc:
         map_service_case_to_bitable_fields(_projection(origin_type="unknown"))
     assert exc.value.code == FeishuErrorCode.MAPPING_FAILED
+
+
+def test_inbound_status_labels_map_back_to_service_case():
+    assert map_bitable_status_label_to_service_case("待服务") == "open"
+    assert map_bitable_status_label_to_service_case("处理中") == "in_progress"
+    assert map_bitable_status_label_to_service_case("已完成") == "completed"
+    assert map_bitable_status_label_to_service_case("已关闭") == "closed"
+    with pytest.raises(FeishuIntegrationError) as exc:
+        map_bitable_status_label_to_service_case("暂停")
+    assert exc.value.code == FeishuErrorCode.UNSUPPORTED_SERVICE_CASE_STATUS
+
+
+def test_normalize_single_select_value_shapes():
+    assert normalize_single_select_value("处理中") == "处理中"
+    assert normalize_single_select_value(["已完成"]) == "已完成"
+    assert normalize_single_select_value({"name": "已关闭"}) == "已关闭"
+    assert normalize_single_select_value({"text": "待服务"}) == "待服务"
+    assert normalize_single_select_value(None) is None
+    assert normalize_single_select_value([]) is None

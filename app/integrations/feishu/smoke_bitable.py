@@ -1,4 +1,4 @@
-"""Non-destructive Feishu SDK smoke. Does not create Bitable records."""
+"""Read-only Feishu SDK Bitable smoke. Lists fields; does not create records."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ def main() -> int:
         print("Feishu disabled")
         return 0
     try:
-        integration.bitable.list_fields()
+        fields = integration.bitable.list_fields()
+        integration.bitable.search_records(page_size=1)
     except FeishuIntegrationError as exc:
         print(format_safe_feishu_error(exc))
         return 1
-    print("Feishu connection OK")
+    print("Feishu SDK Bitable connection OK")
+    print(f"field_count={len(fields)}")
     return 0
 
 
